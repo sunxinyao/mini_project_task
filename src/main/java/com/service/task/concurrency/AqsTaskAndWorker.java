@@ -4,20 +4,41 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
+/**
+ * AqsTaskAndWorker 支持可重入
+ */
 @Component
 public class AqsTaskAndWorker {
 
     private final Sync sync = new Sync();
 
     private static final class Sync extends AbstractQueuedSynchronizer {
+        // 独立：独占锁重入计数，不和业务任务state混用！
+        private int holdCount = 0;
 
         /**
-         * acquires >0 : task抢占任务，state +1
-         * acquires <0 : worker领取任务，state -1，最小到0，不能负数
+         * acquires >0 : task，state +1
+         * acquires <0 : worker，state -1，最小0
          */
         @Override
         protected boolean tryAcquire(int acquires) {
-            // 有排队前驱节点，直接排队，不抢占
+            final Thread current = Thread.currentThread();
+            // ==========支持重入：当前线程已经持有锁==========
+            if (getExclusiveOwnerThread() == current) {
+                holdCount++;
+                // 同一个线程持有锁，直接修改业务state，不需要CAS竞争
+                int curState = getState();
+                if (acquires > 0) {
+                    setState(curState + 1);
+                } else if (acquires < 0) {
+                    if (curState > 0) {
+                        setState(curState - 1);
+                    }
+                }
+                return true;
+            }
+
+            // 不是持有线程：正常走排队+CAS竞争
             if (hasQueuedPredecessors()) {
                 return false;
             }
@@ -25,22 +46,22 @@ public class AqsTaskAndWorker {
             for (; ; ) {
                 int currentState = getState();
                 if (acquires > 0) {
-                    // Task：任务提交，state +1
+                    // Task +1
                     int newState = currentState + 1;
                     if (compareAndSetState(currentState, newState)) {
-                        // 独占所有者设置当前task线程
-                        setExclusiveOwnerThread(Thread.currentThread());
+                        setExclusiveOwnerThread(current);
+                        holdCount = 1;
                         return true;
                     }
                 } else if (acquires < 0) {
-                    // Worker：领取任务，state-1，不能小于0
+                    // Worker -1，不能小于0
                     if (currentState <= 0) {
-                        // 没有任务，获取失败
                         return false;
                     }
                     int newState = currentState - 1;
                     if (compareAndSetState(currentState, newState)) {
-                        setExclusiveOwnerThread(Thread.currentThread());
+                        setExclusiveOwnerThread(current);
+                        holdCount = 1;
                         return true;
                     }
                 } else {
@@ -49,58 +70,52 @@ public class AqsTaskAndWorker {
             }
         }
 
-        /**
-         * release释放锁，重置独占线程，state不变！
-         * 重点：state代表任务计数，释放锁不重置state，只是让出独占权限，让其他线程竞争
-         */
         @Override
         protected boolean tryRelease(int releases) {
             if (Thread.currentThread() != getExclusiveOwnerThread()) {
                 throw new IllegalMonitorStateException();
             }
-            // 释放锁：只清空独占线程，**不修改state**，state是任务计数器
+            // 处理重入：holdCount递减，只有降到0才真正释放独占所有权
+            holdCount--;
+            if (holdCount > 0) {
+                // 重入未完全释放，不清除ownerThread，不真正释放锁
+                return true;
+            }
+            holdCount = 0;
             setExclusiveOwnerThread(null);
             return true;
         }
 
-        public int getCurrentState() {
+        public int getTaskCount() {
             return getState();
         }
     }
 
     /**
-     * Task尝试抢占(提交任务) state +1
-     * @param timeout 超时
-     * @param unit 时间单位
-     * @return true抢占成功，false超时失败
+     * Task 提交任务 state+1
      */
     public boolean tryLockForTask(long timeout, TimeUnit unit) throws InterruptedException {
-        // acquires=1 代表task操作，state+1
         return sync.tryAcquireNanos(1, unit.toNanos(timeout));
     }
 
     /**
-     * Worker尝试抢占(领取任务) state -1，最低到0
-     * @param timeout 超时
-     * @return true抢到，可以处理任务；false没有任务/超时
+     * Worker 领取任务 state-1
      */
     public boolean tryLockForWorker(long timeout, TimeUnit unit) throws InterruptedException {
-        // acquires=-1代表worker操作，state-1
         return sync.tryAcquireNanos(-1, unit.toNanos(timeout));
     }
 
     /**
-     * 释放锁，只释放独占权限，不修改任务计数state
+     * unlock：注意重入场景，调用多少次lock就要多少次unlock
      */
     public void unlock() {
         sync.release(1);
     }
 
     /**
-     * 获取当前任务计数state，业务层使用
-     * @return 当前state，>=0
+     * 获取当前待处理任务计数
      */
     public int getTaskCount() {
-        return sync.getCurrentState();
+        return sync.getTaskCount();
     }
 }
