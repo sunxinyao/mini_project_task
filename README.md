@@ -70,7 +70,7 @@ git地址：https://github.com/sunxinyao/mini_project_task.git
 这是本项目的核心并发控制机制。当多个 Worker 同时调用领取接口时，自定义锁继承AQS竞争，需要保证同一时刻只有一个 Worker 能从队列中取任务。
 AQS 锁 + 行锁 + 条件更新 保证并发竞争
 
-**个人还有个想法，待尝试，新建task任务时AQS的state +1，worker负责—1，类似将任务也加入锁竞争，形成类似可重入**
+**个人还有个想法待尝试: 新建task任务或者task执行失败，需要变更到QUEUED状态时，AQS的state +1，worker负责—1，类似将任务也加入锁竞争，形成类似可重入**
 
 
 ### 2.2 异常租约过期
