@@ -93,6 +93,12 @@ AQS 锁 + 行锁 + 条件更新 保证并发竞争
 1个task任务 2个worker竞争场景：
 [TaskClaimControllerTest.java] concurrentClaim_twoWorkers_exactlyOneSucceeds()
 
+3次重试失败终止
+[TaskReportControllerTest.java] failTask_afterMaxAttempts_marksFailedAndNeverReclaimed()
+
+租约过期场景：
+[TaskReportControllerTest.java] leaseExpiry_requeuesTask_andNewWorkerReclaimsWithNewToken()
+
 
 ## 四、AI coding 提示词
 
