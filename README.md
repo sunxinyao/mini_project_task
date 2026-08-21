@@ -4,7 +4,8 @@ v1.1版本
 最新增加[AqsTaskAndWorker.java] AQS锁类
 用于新建task任务或者task执行失败，需要变更到QUEUED状态时 竞争锁
 锁具体逻辑 task拿到锁时AQS的state +1，worker拿到锁时 AQS的state -1
-备注：时间有限，未测试，理论可行（task任务在非终态，即QUEUED和RUNNING之间变换时均需要加锁）
+理论可行（task任务在非终态，即QUEUED和RUNNING之间变换时均需要加锁）
+备注：时间有限，业务逻辑未改，[AqsTest.java]已测通过！
 
 v1.0版本
 基于 Spring Boot 4.1.0 + MyBatis + MySQL 的任务队列系统，支持多 Worker 并发竞争领取任务、
