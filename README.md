@@ -6,6 +6,7 @@ v1.1版本
 锁具体逻辑 task拿到锁时AQS的state +1，worker拿到锁时 AQS的state -1
 理论可行（task任务在非终态，即QUEUED和RUNNING之间变换时均需要加锁）
 备注：时间有限，业务逻辑未改，[AqsTest.java]已测通过！
+未优化到位的点：目前时worker拿锁，再去判断task租约到期，调换下顺序，避免worker拿锁时state=0，返回false
 
 v1.0版本
 基于 Spring Boot 4.1.0 + MyBatis + MySQL 的任务队列系统，支持多 Worker 并发竞争领取任务、
