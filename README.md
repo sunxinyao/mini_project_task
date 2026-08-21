@@ -50,7 +50,7 @@ git地址：https://github.com/sunxinyao/mini_project_task.git
                     │              SUCCEEDED          FAILED
                     │             (终止态)        (达到 max_attempts，终止态)
                     │
-                    └── 租约过期且已达上限 ──► FAILED
+                    └── 租约过期
 ```
 
 | 状态 | 含义 | 是否终止态 |
